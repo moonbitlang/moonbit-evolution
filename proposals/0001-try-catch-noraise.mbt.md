@@ -1,6 +1,6 @@
-# Change `try-catch-else` to `try-catch-orsuccess`
+# Change `try-catch-else` to `try-catch-noraise`
 
-* Proposal: [ME-0001](https://github.com/moonbitlang/moonbit-evolution/blob/0001-orsuccess/proposals/0001-try-catch-orsuccess.mbt.md)
+* Proposal: [ME-0001](https://github.com/moonbitlang/moonbit-evolution/blob/0001-orsuccess/proposals/0001-try-catch-noraise.mbt.md)
 * Author: [Yu-zh](https://github.com/Yu-zh)
 * Status: Under review
 * Review and discussion: [Github issue](https://github.com/moonbitlang/moonbit-evolution/pull/2)
@@ -10,7 +10,7 @@
 The usage of `else` keyword in the `try` expression is not consistent with its
 usage in the `guard` and `if` expressions. This inconsistency is confusing and
 adds cognitive load for users. We propose to change the keyword `else` to
-`orsuccess` in the `try` expression for more clarity.
+`noraise` in the `try` expression for more clarity.
 
 ## Motivation
 
@@ -48,7 +48,7 @@ confusing.
 
 ## Proposed solution
 
-We propose to change the keyword `else` to `orsuccess` in the `try` expression
+We propose to change the keyword `else` to `noraise` in the `try` expression
 for more clarity.
 
 ```moonbit
@@ -57,13 +57,13 @@ fn init {
         f()
     } catch {
         e => println(e)
-    } orsuccess {
+    } noraise {
         i => println(i)
     }
 }
 ```
 
-The keyword `orsuccess` solves the aforementioned problem, and clearly indicates
+The keyword `noraise` solves the aforementioned problem, and clearly indicates
 it runs only if the `try` block succeeds and the `catch` block is skipped. 
 
 This change is also minimal because this is only a substitution of the keyword,
