@@ -71,7 +71,7 @@ and the formatter can help with the migration.
 
 ## Possible alternatives
 
-* Remove `else` keyword
+### Remove `else` keyword
 
 In most cases, the expression
 ```
@@ -100,3 +100,49 @@ fn h() -> Unit raise {
 
 Therefore, removing `else` in the `try` expression will result in a loss of
 expressiveness.
+
+### Combine the patterns in the `catch` block and the `else` block
+
+This is similar to the OCaml's approach to match the expression with possible
+exception. For example, the alternative syntax would be:
+```moonbit
+fn h1() -> Unit raise {
+    try { ... } catch {
+        Err1 => ...
+        Err2 => ...
+        _ => ...
+        noraise i => ...
+    }
+}
+```
+
+There are several potential problems with this approach: 
+* It is weird that there are cases following the `_` case. 
+* The keyword `noraise` is awkward because another way to understand it is that
+  the branch following `noraise` does not raise an error.
+* This will introduce a complicated change to the current codebase.
+
+### Add payload to the `catch` and `else` block
+
+For example, the alternative solution would be:
+
+```moonbit
+fn h2() -> Unit raise {
+    try { ... } catch (e) {
+        match e {
+            Err1 => ...
+            Err2 => ...
+            _ => ...
+        }
+    } else (i) {
+        println(i)
+    }
+}
+```
+
+Several problems with this approach:
+* It adds another level of indentation when match on the error compared to the
+  current syntax.
+* We have two kinds of blocks now: the one with match cases and the one with
+  expression. This syntax will add another kind of block, which potentially complicates the syntax overall.
+* This will also introduce a complicated change to the current codebase.
