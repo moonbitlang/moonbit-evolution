@@ -2,7 +2,7 @@
 
 - Proposal: [ME-0003](https://github.com/moonbitlang/moonbit-evolution/blob/0003-todo-cases/proposals/0003-todo-cases.mbt.md)
 - Author: [Yu-zh](https://github.com/Yu-zh)
-- Review and discussion: [Github issue](https://github.com/moonbitlang/moonbit-evolution/pull/4)
+- Review and discussion: [GitHub issue](https://github.com/moonbitlang/moonbit-evolution/pull/4)
 
 ## Introduction
 
