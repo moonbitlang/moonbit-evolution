@@ -1,7 +1,7 @@
 # Generics Traits
 
 * Proposal: [ME-0004](https://github.com/illusory0x0/moonbit-evolution/blob/0004-generics-traits/proposals/0004-generics-traits.mbt.md)
-* Author: [illusory0x0](https://github.com/illusory0x0)
+* Author: [illusory0x0](https://github.com/illusory0x0), [Erchiusx](https://github.com/Erchiusx)
 * Status: Under review
 * Review and discussion: [Github issue](https://github.com/moonbitlang/moonbit-evolution/pull/5)
 
@@ -47,7 +47,7 @@ so it was necessary to enhance the ability of the trait.
 
 Now that the `Show` trait calls the `&Logger` trait object using dynamic dispatch can affect performance.
 
-```moonbit 
+```moonbit skip
 pub(open) trait Show {
   output(Self, &Logger) -> Unit
   to_string(Self) -> String = _
@@ -55,7 +55,7 @@ pub(open) trait Show {
 ```
 
 
-```moonbit 
+```moonbit skip
 ///|
 #external
 type Element
@@ -135,7 +135,7 @@ This makes it easy to use the compiler to check for API consistency.
 
 Actually this `Functor` more similar to [traverse](https://hackage.haskell.org/package/base-4.21.0.0/docs/Prelude.html#v:traverse) when passing callback function which raise error.
 
-```moonbit 
+```moonbit skip
 trait Functor[A] {
   fn[B] map(self : Self[A], f : (A) -> B raise?) -> Self[B] raise?
 }
@@ -148,7 +148,7 @@ trait Monad[A] : Functor[A] {
 
 without type annotation impl.
 
-```moonbit 
+```moonbit skip
 impl Functor for FixedArray with map(self, f) { ... }
 impl Monad for FixedArray with bind(self, f) { ... }
 impl Monad for FixedArray with pure(a) { ... }
@@ -160,7 +160,7 @@ impl Monad for Result with pure(a) { ... }
 
 with type annotation impl.
 
-```moonbit 
+```moonbit skip
 impl Functor for FixedArray with[A,B] map(self : Self[A], f : (A) -> B raise?) -> Self[B] raise? { ... }
 impl Monad for FixedArray with[A,B] bind(self : Self[A], f : (A) -> Self[B] raise?) -> Self[B] raise? { ... }
 impl Monad for FixedArray with[A] pure(x : A) -> Self[A] { ... }
@@ -181,7 +181,7 @@ Use traits as API design guidelines, just as we did with traits that weren't gen
 
 C++ using [Range Concepts](https://en.cppreference.com/w/cpp/header/ranges.html#Concepts) and [Iterator Concepts](https://en.cppreference.com/w/cpp/iterator.html) as API design guidelines, If someone implement this convention, then they enjoy the benefits of [algorithm](https://en.cppreference.com/w/cpp/algorithm.html) which is common data structures operation.
 
-```moonbit
+```moonbit skip
 
 trait Iterable[A] {
   iter(Self[A]) -> Iter[A]
@@ -205,7 +205,7 @@ trait KnownSizedIterable[A] : Iterable[A] {
 
 we also can improve performance for `Array::push_iter`.
 
-```moonbit 
+```moonbit skip 
 fn[A,I : KnownSizedIterable] Array::push_iter(self : Self[A], xs : I[A]) -> Unit {
   self.reserve_capacity(self.length() + xs.size())
   for x in xs {
@@ -218,7 +218,7 @@ fn[A,I : KnownSizedIterable] Array::push_iter(self : Self[A], xs : I[A]) -> Unit
 
 support generics method in traits can reduce many `downcast` call.
 
-```moonbit 
+```moonbit skip 
 ///|
 #external
 type Element
@@ -283,7 +283,7 @@ test {
 
 ### Show trait
 
-```moonbit 
+```moonbit skip 
 pub(open) trait Show {
   fn[L : Logger] output(Self,L) -> Unit
   to_string(Self) -> String = _
