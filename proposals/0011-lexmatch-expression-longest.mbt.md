@@ -167,10 +167,12 @@ pub fn search_marker(str: StringView) -> StringView? {
   concepts may lead to confusion and complexity. By introducing a separate
   expression for lexical analysis, we can keep the semantics clear and focused.
 
-- Which syntaxes/features can be used in regex literals?
+- Which syntaxes/features can be used in regex literals currently?
 
   Bascially, the syntax aligned with JavaScript regex literals (with v flag
-  enabled), with the following not supported for now:
+  enabled).
+  
+- What features might be supported in the future?
 
   - Regex flags (e.g. `i`, `g`, `m`, etc.)
   - Lookahead and lookbehind assertions (e.g. `(?=...)`, `(?!...)`, etc.)
