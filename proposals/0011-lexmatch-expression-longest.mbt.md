@@ -43,6 +43,23 @@ pub fn wordcount(
 }
 ```
 
+### Downloadable protocol extractor
+
+The following function extracts the protocol from a given URL if it is a
+downloadable protocol (ftp, http, https). It demonstrates the use of `lexmatch?`
+expression and case-insensitive modifier.
+
+```moonbit
+///|
+pub fn downloadable_protocol(url: StringView) -> StringView? {
+  if url lexmatch? (("(?i:ftp|http(s)?)" as protocol) "://", _) with longest {
+    Some(protocol)
+  } else {
+    None
+  }
+}
+```
+
 ## Explanation
 
 ### Terminology
@@ -105,7 +122,6 @@ pub fn wordcount(
     If the lex pattern is a bare regex pattern of this form, the parentheses are
     required.
 
-
   Regex patterns can be nested to form more complex patterns.
 
 ### Semantics
@@ -141,6 +157,11 @@ following differences:
   `BytesView`. The `"^"` regex pattern matches the start of the target (not
   implemented for now).
 
+- The scoped modifiers syntax, such as `(?i:...)`, can only enable one modifier
+  per group. E.g. `(?im:...)` is not supported for now. And doesn't support
+  negating modifiers, such as `(?-i:...)`. For now, the only supported modifier
+  is `i` (case-insensitive).
+
 ## Recipes
 
 ### Search a marker in a string
@@ -171,7 +192,7 @@ pub fn search_marker(str: StringView) -> StringView? {
 
   Bascially, the syntax aligned with JavaScript regex literals (with v flag
   enabled).
-  
+
 - What features might be supported in the future?
 
   - Regex flags (e.g. `i`, `g`, `m`, etc.)
