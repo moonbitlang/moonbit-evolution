@@ -162,6 +162,18 @@ following differences:
   negating modifiers, such as `(?-i:...)`. For now, the only supported modifier
   is `i` (case-insensitive).
 
+### Special Character classes
+
+The following special character classes are supported in regex patterns:
+
+- `.`: Matches any single character.
+- `\s`: Matches any whitespace character in ASCII range. Equivalent to `[ \t\r\n\f\v]`
+- `\S`: Matches any non-whitespace character in ASCII range. Equivalent to `[^ \t\r\n\f\v]`
+- `\d`: Matches any digit character in ASCII range. Equivalent to `[0-9]`
+- `\D`: Matches any non-digit character in ASCII range. Equivalent to `[^0-9]`
+- `\w`: Matches any word character in ASCII range. Equivalent to `[a-zA-Z0-9_]`
+- `\W`: Matches any non-word character in ASCII range. Equivalent to `[^a-zA-Z0-9_]`
+
 ## Recipes
 
 ### Search a marker in a string
