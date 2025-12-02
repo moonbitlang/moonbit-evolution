@@ -1,7 +1,7 @@
-# Lexmatch expression (longest match strategy)
+# Lexmatch expression
 
 - Proposal:
-  [ME-0011](https://github.com/moonbitlang/moonbit-evolution/blob/0011-lexmatch-expression/proposals/0011-lexmatch-expression-longest.mbt.md)
+  [ME-0011](https://github.com/moonbitlang/moonbit-evolution/blob/0011-lexmatch-expression/proposals/0011-lexmatch-expression.mbt.md)
 - Author: [Wen Yuxiang](https://github.com/hackwaly)
 - Status: Experimental
 - Review and discussion: [GitHub
@@ -60,6 +60,22 @@ pub fn downloadable_protocol(url: StringView) -> StringView? {
 }
 ```
 
+### Search for first block comment
+
+The following function searches for the first block comment in a given string.
+It demonstrates the use of `lexmatch` expression with `first` match strategy,
+search mode, and non-greedy quantifiers.
+
+```moonbit
+///|
+pub fn first_block_comment(str : StringView) -> StringView? {
+  lexmatch str {
+    (_, "/\*" (".*?" as content) "\*/", _) => Some(content)
+    _ => None
+  }
+}
+```
+
 ## Explanation
 
 ### Terminology
@@ -67,8 +83,6 @@ pub fn downloadable_protocol(url: StringView) -> StringView? {
 - **Target**: The `StringView` or `BytesView` to be `lexmatch`ed.
 - **Match Strategy**: The strategy used to match patterns. It can be either
   `longest` or `first` (default).
-
-  In this proposal, we only focus on the `longest` match strategy.
 
 - **Catch-all case**: A case with a variable or wildcard `_` as its left-hand
   side, which matches any target. It is required to be placed at the end of the
@@ -100,6 +114,23 @@ pub fn downloadable_protocol(url: StringView) -> StringView? {
     In this case, the regex pattern is `"\n"`, which matches a newline character
     at the beginning of the target. The `rest` variable will bind to the
     remaining suffix of the target after removing the matched prefix.
+
+  - Wildcard `_` followed by a comma, a regex pattern, another comma, and a rest
+    variable. This so called "search mode" form, and can only be used under
+    "first" match strategy.
+    
+    The regex pattern will search for the first match in the
+    target. The `_` matches the prefix before the match, and the rest variable
+    will bind to the remaining suffix after the match.
+
+    The rest variable can be either a variable or a wildcard `_`.
+
+    E.g. `(_, "/\*" (".*?" as content) "\*/", _)`
+
+    In this case, the regex pattern is `"/\\*" (".*?" as content) "\\*/"`, which
+    matches a block comment. The `_` matches the prefix before the block
+    comment, and the last `_` matches the remaining suffix after the block
+    comment.
 
 - **Regex Pattern**: Regex patterns have three forms:
 
@@ -133,8 +164,7 @@ following differences:
 2. Each arm/case except the catch-all case of a `lexmatch` expression must have
    a lex pattern as its left-hand side.
 3. The match strategy can be specified after the `with` keyword. If not
-   specified, the default strategy is `first`. `first` strategy is considered
-   unavailable at the moment.
+   specified, the default strategy is `first`.
 4. The regex patterns in lex patterns are matched against the target using the
    specified match strategy.
 5. If a regex pattern matches the target, any capture variables in the pattern
@@ -142,7 +172,11 @@ following differences:
 6. If a regex pattern followed by a comma and a rest variable matches the
    target, the regex pattern will match the prefix of the target, and the rest
    variable will bind to the remaining suffix.
-7. If no lex pattern matches the target, the catch-all case will be executed.
+7. If a wildcard `_` followed by a comma, a regex pattern, another comma, and a
+   rest variable matches the target, the regex pattern will search for the first
+   match in the target. The `_` matches the prefix before the match, and the
+   rest variable will bind to the remaining suffix.
+8. If no lex pattern matches the target, the catch-all case will be executed.
 
 ### Subtleties
 
@@ -162,34 +196,23 @@ following differences:
   negating modifiers, such as `(?-i:...)`. For now, the only supported modifier
   is `i` (case-insensitive).
 
+- Non-greedy quantifiers (e.g. `*?`, `+?`, `??`, `{n,m}?`) are supported under
+  first match strategy.
+
 ### Special Character classes
 
 The following special character classes are supported in regex patterns:
 
 - `.`: Matches any single character.
-- `\s`: Matches any whitespace character in ASCII range. Equivalent to `[ \t\r\n\f\v]`
-- `\S`: Matches any non-whitespace character in ASCII range. Equivalent to `[^ \t\r\n\f\v]`
+- `\s`: Matches any whitespace character in ASCII range. Equivalent to `[
+  \t\r\n\f\v]`
+- `\S`: Matches any non-whitespace character in ASCII range. Equivalent to `[^
+  \t\r\n\f\v]`
 - `\d`: Matches any digit character in ASCII range. Equivalent to `[0-9]`
 - `\D`: Matches any non-digit character in ASCII range. Equivalent to `[^0-9]`
 - `\w`: Matches any word character in ASCII range. Equivalent to `[a-zA-Z0-9_]`
-- `\W`: Matches any non-word character in ASCII range. Equivalent to `[^a-zA-Z0-9_]`
-
-## Recipes
-
-### Search a marker in a string
-
-```moonbit
-pub fn search_marker(str: StringView) -> StringView? {
-  for curr = str {
-    lexmatch curr with longest {
-      "" => return None
-      ("MARKER", right) => return Some(right)
-      (".", rest) => continue rest
-      _ => panic()
-    }
-  }
-}
-```
+- `\W`: Matches any non-word character in ASCII range. Equivalent to
+  `[^a-zA-Z0-9_]`
 
 ## FAQ
 
