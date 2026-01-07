@@ -64,7 +64,11 @@ Since imports are used frequently, users have to edit `moon.pkg.json` during dev
 
 ## Proposed solution
 
-We propose introducing a DSL called `moon.pkg` to replace the current `moon.pkg.json` format. The new DSL allows comments, trailing commas, and provides shorthand syntax for frequently used, stable configurations, such as import declarations. Below is an example of the proposed `moon.pkg` syntax:
+We propose introducing a DSL called `moon.pkg` to replace the current `moon.pkg.json`
+
+format. The new DSL allows comments, trailing commas, and provides shorthand syntax 
+for frequently used, stable configurations, such as import declarations, pre-build command, 
+formatter, and warnings. Below is an example of the proposed `moon.pkg` syntax:
 
 ```moonbit
 import {
@@ -81,22 +85,66 @@ import "test" {
 
 import "wbtest" {
   "path/to/pkg7",
+  // allow comments
   "path/to/pkg8" as @alias4,
 }
 
-config {
-  "is_main": true, // allow comments
-  "alert_list": "+a+b-c",
-  "bin_name": "name",
-  "bin_target": "target",
-  "implement": "virtual-package-name",
-  "supported_targets": ["wasm", "js"],
-  "targets": {},
-  "link": {},
+// general configuration options for unstable configuration and compatibility purpose
+options(
+  targets: {},
+  link: {
+    "native": {
+      "cc": "gcc",
+    } 
+  },
+  implement: "virtual-package-name",
+  formatter: {
+    "ignore": [
+      "file1.mbt",
+      "file2.mbt",
+    ],
+  },
+  // if the key contains `-`, allow to use `"key": value` syntax for compatibility
+  "pre-build": [
+    {
+      "command": "exe $input -o $output",
+      "input": "src.mbt",
+      "output": "gen.mbt"
+    }
+  ],
+  "warn-list": "+unused_value-todo@deprecated_syntax",
+  "is-main": true, 
+  "alert-list": "+a+b-c",
+  "bin-name": "name",
+  "bin-target": "target",
+  "supported-targets": ["wasm", "js"],
   "native_stub": [
     "a", "b", "c"
   ], // allow trailing commas
-}
+)
+```
+
+EBNF grammar for `moon.pkg` DSL:
+
+```
+moon_pkg ::= pkg_statement*
+pkg_statement ::= import_statement | apply_statement
+
+import_statement ::= 'import' import_kind? '{' import_items? '}'
+import_kind ::= '"test"' | '"wbtest"'
+import_items ::= import_item (',' import_item)* ','?
+import_item ::= STRING ('as' '@' PKG_IDENT)?
+
+apply_statement ::= LIDENT '(' arguments? ')'
+arguments ::= argument (',' argument)* ','?
+argument ::= LIDENT ':' expression | STRING ':' expression
+
+expression ::= 'true' | 'false' | STRING | INT | '{' map_items? '}' | '[' array_items? ']'
+
+map_items ::= map_item (',' map_item)* ','?
+map_item ::= STRING ':' expression
+
+array_items ::= expression (',' expression)* ','?
 ```
 
 ### The import declarations
@@ -120,18 +168,26 @@ import {
 
 To declare import for blackbox tests and whitebox tests, we use the `import "test"` and `import "wbtest"` blocks.
 
-### The config block
+### The `options` declarations
 
-Since configuration options are not yet stable and may change in the future, we cannot design special syntax for each option at this time. Instead, we use a `config` block that contains key-value pairs similar to JSON syntax, which forms a subset of the MoonBit language.
+Since configuration options are not yet stable and may change in the future, we cannot design special syntax for each option at this time. Instead, we use an `options` declaration that contains key-value pairs, similar to JSON syntax but following MoonBit conventions.
 
-This design maintains compatibility with current options and allows easy extension of experimental configuration options in the future without requiring syntax changes.
+The `options` declaration is mapped one-to-one with the fields in `moon.pkg.json` , and its semantics are directly translated to the existing JSON configuration. This ensures full compatibility with current options and allows for easy extension of experimental configuration options in the future without requiring syntax changes.
 
-Once the build system and configuration become stable, we can consider providing special syntax for frequently used options to improve usability.
+### Future extensions
+
+Once the build system and configuration become stable, we can consider providing shorthand syntax for frequently used options to improve usability.
+For example, we can introduce a `build` declaration to specify pre-build commands, a `formatter` declaration to configure the code formatter, and a `warnings` declaration to manage warning settings.
+
+```moonbit
+build(command: "exe $input -o $output", input: "src.mbt", output: "gen.mbt")
+formatter(ignore: [ "file1.mbt", "file2.mbt" ])
+warnings(on: ["unused_value"], off: ["todo"], as_error: ["deprecated_syntax"])
+```
 
 ### Benefits 
 
 * **Better user experience for import declarations**
-
     The syntax is easier to write and supports comments and trailing commas.
 
     It can be integrated as part of MoonBit syntax. In a regular MoonBit project, 
