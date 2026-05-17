@@ -50,9 +50,7 @@ wanted to write something like:
 ```moonbit
 fn SourceLocRepr::to_json_string(self : SourceLocRepr) -> String {
   let sb = StringBuilder()
-  sb..write(
-    #|{"filename":\{sb => self.filename.escape_to(sb)},"start_line":\{self.start_line},"start_column":\{self.start_column},"end_line":\{self.end_line},"end_column":\{self.end_column}}
-  )
+  sb <+ #|{"filename":\{sb => self.filename.escape_to(sb)},"start_line":\{self.start_line},"start_column":\{self.start_column},"end_line":\{self.end_line},"end_column":\{self.end_column}}
   sb.to_string()
 }
 ```
@@ -128,8 +126,8 @@ compiler knows. The three common forms:
 | Form | Target type |
 | --- | --- |
 | `"..."` used as a `String` (no explicit target) | a fresh `StringBuilder`, then `to_string()` |
-| `sb..write("...")` or `sb <+ "..."` against a concrete builder | the builder's type |
-| `logger.write("...")` against an abstract `&Logger` | `&Logger` |
+| `sb <+ "..."` against a concrete builder | the builder's type |
+| `logger <+ "..."` against an abstract `&Logger` | `&Logger` |
 
 The lambda parameter is elaborated under exactly this target type. No
 implicit coercion happens at the **parameter binding** itself — if the
@@ -150,16 +148,16 @@ the splice is elaborated in the type environment the caller chose.
 // Inline custom escaping.
 let view = "Hello\n\"World\""[:]
 let sb = StringBuilder()
-sb..write("body:\{sb => view.escape_to(sb)}")
+sb <+ "body:\{sb => view.escape_to(sb)}"
 // desugars to:
 //   sb.write_string("body:")
 //   (fn (sb) -> Unit { view.escape_to(sb) })(sb)
 
 // Mixing ordinary and callback splices.
-sb..write("name:\{name} body:\{sb => view.escape_to(sb)}")
+sb <+ "name:\{name} body:\{sb => view.escape_to(sb)}"
 
 // Calling an existing writer function — eta-expansion at the splice site.
-sb..write("\{sb => pretty_print(tree, sb)}")
+sb <+ "\{sb => pretty_print(tree, sb)}"
 ```
 
 ### What is *not* a writer-callback splice
@@ -202,12 +200,36 @@ pub impl Show for Fmt with output(self, logger) {
 ```
 
 Users would then write `"\{Fmt(sb => view.escape_to(sb))}"`. This works
-today with zero compiler change. The downsides are call-site ceremony at
-every splice and the conceptual conflation of "writer callback" with a
-`Show` value. The writer-splice form removes the wrapper but is strictly
-more expressive only at the source level — both forms compile to the same
-direct call. Library authors may continue to use `Fmt` where a value-shaped
-writer is useful (e.g. stored in a struct, passed through a `Show` API).
+today with zero compiler change, but the shape is structurally wrong for
+how templates already work. Template strings and the `<+` / `..write`
+forms are **purely syntactic** today: literal fragments expand to
+`write_string` and splices expand to `write`, against *whatever target*
+the user wrote on the left. There is no trait constraint on the operator
+itself — a `StringBuilder`, a `Buffer`, an `&Logger`, or a user-defined
+type with a `write_string` / `write` pair all work the same way.
+
+Routing writer callbacks through `Show` collapses that generality:
+
+- `Show::output` is fixed to `(Self, &Logger) -> Unit`, so `Fmt`'s
+  callback type is forced to `(&Logger) -> Unit`. A writer that wants to
+  consume a concrete `StringBuilder` (e.g. to use builder-only fast
+  paths) cannot be expressed as a `Fmt` without an upcast at the body
+  level on every call.
+- The wrapper is per-target — a separate `Fmt[Buffer]` newtype would be
+  needed to bypass `&Logger`, and each would need its own `Show` story,
+  which is itself a contortion since `Show` is `&Logger`-oriented.
+- It conceptually conflates "writer callback" with "value that knows
+  how to render itself," which is a layer mismatch: a writer callback
+  is not a value of some type with a representation; it *is* the
+  rendering.
+
+The writer-splice form preserves the macro-style expansion: the
+parameter type of the lambda is whatever the target on the left is.
+Library authors may still ship `Fmt` for cases where they need a
+value-shaped, `Show`-routed writer (e.g. stored in a struct, passed
+through a generic `Show` API). Both forms can coexist; the writer
+splice is just the one that matches the existing `<+` / template
+semantics.
 
 ### Explicit sigil — `\!{f}`, `\@{f}`, `\{f(_)}`
 
@@ -215,9 +237,9 @@ A sigil makes the writer arm explicit at the splice site without requiring a
 lambda head:
 
 ```moonbit
-sb..write("body:\@{view.escape_to}")   // borrows OCaml %a
-sb..write("body:\!{view.escape_to}")   // "do this side effect"
-sb..write("body:\{view.escape_to(_)}") // hole-style placeholder
+sb <+ "body:\@{view.escape_to}"   // borrows OCaml %a
+sb <+ "body:\!{view.escape_to}"   // "do this side effect"
+sb <+ "body:\{view.escape_to(_)}" // hole-style placeholder
 ```
 
 The sigil forms read shorter at the call site and avoid eta-expansion. They
