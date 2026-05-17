@@ -2,7 +2,7 @@
 
 * Proposal: [ME-0012](https://github.com/moonbitlang/moonbit-evolution/blob/0012-callback-splice/proposals/0012-callback-splice-interpolation.mbt.md)
 * Author: [Hongbo Zhang](https://github.com/bobzhang)
-* Review and discussion: [GitHub issue](https://github.com/moonbitlang/moonbit-evolution/pull/TBD)
+* Review and discussion: [GitHub issue](https://github.com/moonbitlang/moonbit-evolution/pull/22)
 
 ## Introduction
 
