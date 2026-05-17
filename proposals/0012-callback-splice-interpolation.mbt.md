@@ -62,6 +62,38 @@ template without leaving interpolation. The win is primarily **readability**
 and secondarily allocation avoidance for cases where the user would otherwise
 have built an intermediate `String`.
 
+### The target is not always `&Logger`
+
+The `<+` operator and template strings are *target-polymorphic*: they
+expand into `write_string` / `write` calls against whatever value is on the
+left. That target can be a `StringBuilder`, a `Buffer`, an `&Logger`, or
+any user-defined builder. A non-trivial MoonBit codebase typically has
+several builders, each with its own surface API:
+
+- A **`StringBuilder`** with builder-only fast paths (`write_substring`,
+  `write_view`, code-unit operations) that `&Logger` does not expose.
+- An **`HTMLBuilder`** with context-aware methods (`open_tag`, `attr`,
+  `text`, `raw`) that enforce escaping rules at the type level.
+- A **`JSONBuilder`** with structural methods (`begin_object`, `field`,
+  `value`, `array`) that enforce well-formedness.
+- A logging sink, a tracing event builder, an ANSI-color formatter, etc.
+
+These are not all reducible to `&Logger`. A writer callback that wants
+to consume one of them needs a parameter of *that* concrete type, so
+that builder-specific methods are in scope inside the lambda body.
+
+A type-fixed wrapper such as `Fmt((&Logger) -> Unit)` cannot express
+splices against any of these builders — it forces the body to talk to an
+`&Logger` it does not have. The writer-splice form, by contrast, is
+naturally polymorphic in the same way `<+` already is: the lambda
+parameter is whatever the surrounding target is, so the same splice
+mechanism works inside an `HTMLBuilder` template, a `JSONBuilder`
+template, or a plain `StringBuilder` template without any new types or
+ceremony. The more diverse a project's builder ecosystem is, the larger
+the gap between the writer-splice form and the `Fmt`-newtype workaround.
+
+### Comparison to OCaml `%a`
+
 This is the role played by `%a` in OCaml's `Printf`/`Format` families:
 
 ```ocaml
@@ -160,6 +192,31 @@ sb <+ "name:\{name} body:\{sb => view.escape_to(sb)}"
 sb <+ "\{sb => pretty_print(tree, sb)}"
 ```
 
+#### A non-`&Logger` builder
+
+Consider an `HTMLBuilder` whose surface API encodes context-aware escaping
+at the type level. The body of a writer splice on this target has the
+builder's methods (`open_tag`, `attr`, `text`, ...) in scope; an `&Logger`
+parameter would have none of them:
+
+```moonbit
+let html = HTMLBuilder::new()
+html <+ "<p>\{sb => sb..text("Hello ")..open_tag("b")..text(user)..close_tag()}!</p>"
+// desugars to:
+//   html.write_string("<p>")
+//   (fn (sb : HTMLBuilder) -> Unit {
+//     sb..text("Hello ")..open_tag("b")..text(user)..close_tag()
+//   })(html)
+//   html.write_string("!</p>")
+```
+
+Crucially, `text(user)` performs HTML-correct escaping at the type level —
+that behaviour lives on `HTMLBuilder`, not on `&Logger`. A
+`Fmt((&Logger) -> Unit)` wrapper could not host this lambda at all; an
+inline lambda whose parameter type is `HTMLBuilder` can. The same shape
+applies to a hypothetical `JSONBuilder::field`, `XMLBuilder::cdata`,
+`AnsiFormatter::style`, etc.
+
 ### What is *not* a writer-callback splice
 
 - `\{ f }` where `f` is a value of function type — desugars via `Show`,
@@ -184,6 +241,101 @@ written to the target remains.
 We call this construct a *writer splice*. The lambda parameter is the
 *target*. The proposal does **not** introduce a new top-level type, trait,
 or method.
+
+## Prior art
+
+The idea of letting a splice be "a callback that writes into the surrounding
+stream" is well-established in formatting libraries that aim to avoid
+materializing intermediate strings:
+
+- **OCaml `Printf`/`Format` `%a` specifier.** `Format.fprintf ppf "%a" pp_v v`
+  takes a printer `(formatter, 'a) -> unit` and a value `v`. The proposal
+  here collapses the printer/value pair into a single closure that already
+  closes over its value, which is natural in a language with first-class
+  closures.
+- **F# `printf "%a"`.** Same as OCaml.
+- **Common Lisp `format` `~/name/` directive.** Invokes a named function
+  with the stream and arguments, e.g. `(format t "~/pprint-fill/" obj)`.
+  This is closer in spirit to the sigil-based alternatives (`\@{f}`,
+  `\{f(_)}`) than to the lambda form below.
+- **Racket's Scribble `@func{...}`.** Explicit `@` sigil that dispatches into
+  a function with the surrounding context.
+- **Smalltalk's `printOn:`, Ruby's `pp`, Go's `fmt.Formatter`.** Trait-shaped
+  variants of the same idea — a type exposes a method that takes a stream
+  argument. These are the spiritual ancestors of the `Fmt`/`Show` alternative
+  discussed below; they tie writer behaviour to a value's type rather than to
+  the splice site, which is exactly what this proposal *does not* do.
+- **JavaScript tagged template literals** (`` tag`...${x}...` ``) are
+  strictly more general — the tag function receives the literal-array and
+  every substitution and can do anything. The proposal here is a much
+  smaller knob aimed at one specific need.
+
+What is novel here is the *syntactic gate*: dispatching on whether the
+splice head is a function literal rather than on a sigil, a trait, or a
+named-function lookup. This keeps the proposal aligned with how MoonBit
+templates already work (purely structural expansion of literal-vs-splice
+fragments into `write_string` / `write` calls) rather than introducing a
+parallel mechanism.
+
+## Use cases
+
+Beyond the `escape_to` motivator, writer splices apply anywhere the
+rendering *algorithm* — not the value's `Show` instance — is what the call
+site wants, and where allocating the intermediate string is wasteful or the
+renderer needs to consult the target. Concrete examples:
+
+- **Streaming a sequence with a separator.** Today users either build an
+  intermediate `Array[String]` and call `String::concat`, or interleave
+  literal-string writes with manual loops. With a writer splice:
+
+  ```moonbit
+  sb <+ "[\{sb => @iter.write_separated(sb, items, sep=", ")}]"
+  ```
+
+- **Conditional fragments.** Replace `if cond { sb <+ "..." }` interleaved
+  with surrounding template text by a single template:
+
+  ```moonbit
+  sb <+ "user=\{name}\{sb => if admin { sb <+ " [admin]" }}"
+  ```
+
+- **HTML/XML/SQL escaping.** Splice content that knows the right escaping
+  rule for its position (text content vs attribute vs URL component), all
+  without materializing.
+
+- **Pretty-printers that consult the target.** A structured pretty-printer
+  needs the current column / indent depth, which lives on the builder. A
+  writer splice gives it the builder directly:
+
+  ```moonbit
+  sb <+ "let \{name} =\n\{sb => pp.indent(sb, 2, () => pp.expr(sb, body))}"
+  ```
+
+- **Error messages with source spans.** Render a snippet with carets at the
+  right column inside a larger diagnostic template without building the
+  snippet as a String first.
+
+- **Hex/byte dumps inside diagnostics.**
+
+  ```moonbit
+  sb <+ "unexpected: \{sb => hex_dump(sb, bytes, group=8)}"
+  ```
+
+- **i18n with pluralization and runtime values.** Plural/gender selection
+  often depends on count/locale and writes a localized fragment directly:
+
+  ```moonbit
+  sb <+ "\{sb => i18n_plural(sb, key, count, locale)}"
+  ```
+
+- **JSON / s-expression / protobuf encoders.** Encoders today come in two
+  flavours — one that materialises and one that streams into a logger;
+  writer splices make the streaming form the natural call site, removing
+  the need for the materialising variant in most user code.
+
+The common thread is that the value at the splice site is best expressed
+*as the act of writing it* rather than as a `Show`-able representation of
+itself.
 
 ## Alternatives considered
 
@@ -218,6 +370,17 @@ Routing writer callbacks through `Show` collapses that generality:
 - The wrapper is per-target — a separate `Fmt[Buffer]` newtype would be
   needed to bypass `&Logger`, and each would need its own `Show` story,
   which is itself a contortion since `Show` is `&Logger`-oriented.
+
+  Concretely: a `HtmlFmt((HTMLBuilder) -> Unit)` newtype solves nothing
+  at the language level. Its `Show` impl can only write text into an
+  `&Logger`, so to splice an `HtmlFmt` into an `HTMLBuilder` template the
+  builder would have to invoke the closure via some bespoke method like
+  `html..apply(htmlFmt)` — different from `Show::output`, different from
+  every other builder's bespoke method, and unable to participate in
+  `<+` interpolation at all without exactly the language change this
+  proposal makes. Each new builder would reinvent the same dispatch
+  mechanism under a different name. That is the language-level cost the
+  proposal removes by gating on syntax instead of on a trait.
 - It conceptually conflates "writer callback" with "value that knows
   how to render itself," which is a layer mismatch: a writer callback
   is not a value of some type with a representation; it *is* the
